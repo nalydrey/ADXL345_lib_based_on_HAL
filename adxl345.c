@@ -1,0 +1,107 @@
+/*
+ * adxl345.c
+ *
+ *  Created on: Feb 15, 2025
+ *      Author: Oleksiy
+ */
+#include "adxl345.h"
+
+
+
+
+ADXL345 ADXL345_SPI_init(ADXL345_Init_struct * initData){
+
+	ADXL345 device;
+
+	device.CS_port = initData->CS_port;
+	device.CS_Pin = initData->CS_Pin;
+
+	clockTheBus(initData->interface_instance);
+
+	device.SPI_Interface.Instance = initData->interface_instance;
+
+	device.SPI_Interface.Init.Mode = SPI_MODE_MASTER;
+	device.SPI_Interface.Init.CLKPolarity = SPI_POLARITY_HIGH;
+	device.SPI_Interface.Init.CLKPhase = SPI_PHASE_2EDGE;
+	device.SPI_Interface.Init.DataSize = SPI_DATASIZE_8BIT;
+	device.SPI_Interface.Init.Direction = SPI_DIRECTION_2LINES;
+	device.SPI_Interface.Init.FirstBit = SPI_FIRSTBIT_MSB;
+	device.SPI_Interface.Init.NSS = SPI_NSS_SOFT;
+	device.SPI_Interface.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+	device.SPI_Interface.Init.TIMode = SPI_TIMODE_DISABLE;
+
+	HAL_SPI_Init(&device.SPI_Interface);
+
+	__adxl345_Init_SPI_GPIO(initData->MISO_port, initData->MISO_Pin, initData->interface_instance, MAIN);
+	__adxl345_Init_SPI_GPIO(initData->MOSI_port, initData->MOSI_Pin, initData->interface_instance, MAIN);
+	__adxl345_Init_SPI_GPIO(initData->SCK_port, initData->SCK_Pin, initData->interface_instance,MAIN);
+	__adxl345_Init_SPI_GPIO(initData->CS_port, initData->CS_Pin, initData->interface_instance, CS);
+
+	HAL_GPIO_WritePin(initData->CS_port, initData->CS_Pin, GPIO_PIN_SET);
+
+	return device;
+}
+
+uint8_t ADXL345_ReadRegister(ADXL345 * device, uint8_t registerAddress){
+
+	uint8_t firstByte = READ_SINGLE_DATA | registerAddress;
+	uint8_t message[2] = {firstByte, 0xFF};
+	uint8_t tempBuffer[2];
+
+	HAL_GPIO_WritePin(device->CS_port, device->CS_Pin, GPIO_PIN_RESET);
+	HAL_SPI_TransmitReceive(&device->SPI_Interface, message, tempBuffer, 2, HAL_MAX_DELAY);
+	HAL_GPIO_WritePin(device->CS_port, device->CS_Pin, GPIO_PIN_SET);
+
+	return tempBuffer[1];
+}
+
+void ADXL345_WriteRegister(ADXL345 * device, uint8_t registerAddress, uint8_t byte){
+
+	uint8_t firstByte = WRITE_SINGLE_DATA | registerAddress;
+	uint8_t message[2] = {firstByte, byte};
+
+	HAL_GPIO_WritePin(device->CS_port, device->CS_Pin, GPIO_PIN_RESET);
+	HAL_SPI_Transmit(&device->SPI_Interface, message, 2, HAL_MAX_DELAY);
+	HAL_GPIO_WritePin(device->CS_port, device->CS_Pin, GPIO_PIN_SET);
+}
+
+uint16_t ADXL345_Read_X_axis(ADXL345 * device){
+
+}
+
+uint16_t ADXL345_Read_Y_axis(ADXL345 * device){
+
+}
+
+uint16_t ADXL345_Read_Z_axis(ADXL345 * device){
+
+}
+
+void ADXL345_Start_measurement(ADXL345 * device){
+
+	uint8_t tempBuffer[1];
+
+	tempBuffer[0] = ADXL345_ReadRegister(device, POWER_CTL);
+
+	ADXL345_WriteRegister(device, POWER_CTL, tempBuffer[0] | 0x08);
+}
+
+void __adxl345_Init_SPI_GPIO(GPIO_TypeDef  *GPIOx, uint16_t pin, SPI_TypeDef * spi_instance, uint8_t mode){
+
+	GPIO_InitTypeDef gpioInit;
+
+	clockTheBus(GPIOx);
+
+	gpioInit.Pin = pin;
+	gpioInit.Mode = mode == CS ? GPIO_MODE_OUTPUT_PP : GPIO_MODE_AF_PP;
+	gpioInit.Pull = GPIO_NOPULL;
+	gpioInit.Speed = GPIO_SPEED_FREQ_HIGH;
+	if(mode == MAIN){
+		gpioInit.Alternate = getAlter(spi_instance);
+	}
+
+	HAL_GPIO_Init(GPIOx, &gpioInit);
+}
+
+
+
